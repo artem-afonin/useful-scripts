@@ -1,3 +1,120 @@
 #!/usr/bin/env bash
 
-echo "TEST"
+# TODO:
+#   - usage
+#   - validate target and alias names
+#   - implement LIST option
+
+# ssh-to <alias>
+# ssh-to --add user@host <alias>
+# ssh-to --remove <alias>
+
+function usage() {
+  echo "DUMMY" >&2
+}
+
+function info() {
+  echo "[INFO]" "$@"
+}
+
+function warn() {
+  echo "[WARNING]" "$@" >&2
+}
+
+function fatal() {
+  echo "[ERROR]" "$@" >&2
+  exit 1
+}
+
+MYDIR=$(dirname $(readlink -m "$0"))
+CACHEDIR="/home/$USER/.cache/ssh-to"
+ALIASES_FILE=$CACHEDIR/aliases.txt
+
+function CACHE_INIT() {
+  mkdir -p $CACHEDIR
+  if [[ ! -e $ALIASES_FILE ]]; then
+    touch $ALIASES_FILE
+  fi
+}
+
+function CACHE_ADD() {
+  local TARGET_HOST="$1"
+  local ALIAS="$2"
+  echo "$TARGET_HOST -->> $ALIAS" >>$ALIASES_FILE
+}
+
+function CACHE_REMOVE() {
+  local ALIAS="$1"
+  sed -i "/^.* -->> $ALIAS\$/d" $ALIASES_FILE
+}
+
+function CACHE_FIND() {
+  local ALIAS="$1"
+  local TARGET_HOST=$(sed -rn "s|^(.*) -->> $ALIAS\$|\1|p" $ALIASES_FILE)
+  echo $TARGET_HOST
+}
+
+FLAG_ADD=false
+ADD_TARGET=
+ADD_ALIAS=
+
+FLAG_REMOVE=false
+REMOVE_ALIAS=
+
+SSH_TO_ALIAS=
+SSH_TO_TARGET=
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -a | --add)
+    [[ $FLAG_ADD == true ]] && fatal "ADD option has already been provided. Multiple ADD options are not supported"
+    [[ $FLAG_REMOVE == true ]] && fatal "ADD option is not compatible with REMOVE option"
+    [[ -z $SSH_TO_ALIAS ]] || fatal "Alias has already been provided. ADD option should not be used now"
+    FLAG_ADD=true
+    ADD_TARGET="$2"
+    ADD_ALIAS="$3"
+    shift 2
+    ;;
+  -r | --remove)
+    [[ $FLAG_ADD == true ]] && fatal "REMOVE option is not compatible with ADD option"
+    [[ $FLAG_REMOVE == true ]] && fatal "REMOVE option has already been provided. Multiple REMOVE options are not supported"
+    [[ -z $SSH_TO_ALIAS ]] || fatal "Alias has already been provided. REMOVE option should not be used now"
+    FLAG_REMOVE=true
+    REMOVE_ALIAS="$2"
+    shift
+    ;;
+  -*)
+    fatal "Unknown argument: $1"
+    ;;
+  *)
+    [[ $FLAG_ADD == true ]] && fatal "Incorrect argument: $1. ADD option has already been provided"
+    [[ $FLAG_REMOVE == true ]] && fatal "Incorrect argument: $1. REMOVE option has already been provided"
+    [[ -z $SSH_TO_ALIAS ]] || fatal "Incorrect argument: $1. Alias has already been provided"
+    SSH_TO_ALIAS="$1"
+    ;;
+  esac
+  shift
+done
+
+CACHE_INIT
+if [[ $FLAG_ADD == true ]]; then
+  info "Adding TARGET \"$ADD_TARGET\" as \"$ADD_ALIAS\""
+  CACHE_ADD "$ADD_TARGET" "$ADD_ALIAS"
+elif [[ $FLAG_REMOVE == true ]]; then
+  info "Removing alias \"$REMOVE_ALIAS\""
+  CACHE_REMOVE "$REMOVE_ALIAS"
+elif [[ -n $SSH_TO_ALIAS ]]; then
+  SSH_TO_TARGET=$(CACHE_FIND "$SSH_TO_ALIAS")
+  if [[ -n $SSH_TO_TARGET ]]; then
+    exec ssh $SSH_TO_TARGET
+  else
+    fatal "No target found for alias \"$SSH_TO_ALIAS\""
+  fi
+else
+  warn "No option was provided. Exitting"
+  exit 0
+fi
