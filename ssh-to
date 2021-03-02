@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
 
 # TODO:
-#   - usage
 #   - validate target and alias names
 #   - implement LIST option
 
-# ssh-to <alias>
-# ssh-to --add user@host <alias>
-# ssh-to --remove <alias>
+MYDIR=$(dirname $(readlink -m "$0"))
+MYBIN=$(basename $(readlink -m "$0"))
+CACHEDIR="/home/$USER/.cache/ssh-to"
+ALIASES_FILE=$CACHEDIR/aliases.txt
 
 function usage() {
-  echo "DUMMY" >&2
+  echo "$MYBIN - Simple script for SSH connection to mostly used hosts." >&2
+  echo "" >&2
+  echo "  Usage: $MYBIN [OPTION] [ARG1, [ARG2]]" >&2
+  echo "    -a, --add" >&2
+  echo "        Add new alias. Provide host and alias name" >&2
+  echo "    -r, --remove" >&2
+  echo "        Remove existing alias. Provide alias name" >&2
+  echo "" >&2
+  echo "  Examples:" >&2
+  echo "    # Connect to \"foo\"" >&2
+  echo "    $MYBIN foo" >&2
+  echo "    # Add host \"user@foobar.test.domain\" as \"foo\"" >&2
+  echo "    $MYBIN --add user@foobar.test.domain foo" >&2
+  echo "    # Remove alias \"bar\"" >&2
+  echo "    $MYBIN --remove bar"
 }
 
 function info() {
@@ -25,10 +39,6 @@ function fatal() {
   echo "[ERROR]" "$@" >&2
   exit 1
 }
-
-MYDIR=$(dirname $(readlink -m "$0"))
-CACHEDIR="/home/$USER/.cache/ssh-to"
-ALIASES_FILE=$CACHEDIR/aliases.txt
 
 function CACHE_INIT() {
   mkdir -p $CACHEDIR
